@@ -1,37 +1,28 @@
 import os
+import threading
 from flask import Flask, request, jsonify
 import ccxt
 
 app = Flask(__name__)
 
-# Render 환경변수 로드
 API_KEY = os.environ.get("BITGET_API_KEY")
 SECRET_KEY = os.environ.get("BITGET_SECRET_KEY")
 PASSPHRASE = os.environ.get("BITGET_PASSPHRASE")
 
-# 비트겟 API 설정 (유니파이드 계정 V2 대응)
 bitget = ccxt.bitget({
     'apiKey': API_KEY,
     'secret': SECRET_KEY,
     'password': PASSPHRASE,
     'enableRateLimit': True,
-    'options': {
-        'defaultType': 'swap'
-    }
+    'options': {'defaultType': 'swap'}
 })
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
+def process_order(data):
+    """비트겟 주문 실행 함수 (백그라운드 비동기)"""
     try:
-        # 415 에러 방지: Content-Type에 상관없이 JSON 데이터 강제 추출
-        data = request.get_json(force=True, silent=True)
-        if not data:
-            return jsonify({"status": "error", "message": "Invalid JSON or Empty Data"}), 400
-
         action = data.get('action')
         raw_symbol = data.get('symbol', 'SOXLUSDT')
         
-        # CCXT 비트겟 심볼 포맷 자동 변환 ('SOXLUSDT' -> 'SOXL/USDT:USDT')
         clean_symbol = raw_symbol.replace(".P", "").replace("/", "")
         if clean_symbol.endswith("USDT"):
             base = clean_symbol[:-4]
@@ -39,14 +30,12 @@ def webhook():
         else:
             symbol = clean_symbol
 
-        # 마켓 정보 사전 로드
         bitget.load_markets()
 
-        # 레버리지 설정 (유니파이드 계정 모드 예외 처리)
         try:
             bitget.set_leverage(4, symbol)
         except Exception as lev_err:
-            print(f"Leverage Notice (Ignored): {str(lev_err)}")
+            print(f"Leverage Notice: {str(lev_err)}")
 
         if action == 'buy':
             balance = bitget.fetch_balance()
@@ -55,7 +44,6 @@ def webhook():
             ticker = bitget.fetch_ticker(symbol)
             current_price = float(ticker['last'])
             
-            # (자유 잔고 * 4배) / 현재가 = 수량 계산
             amount = (usdt_free * 4) / current_price
             
             stop_price = float(data.get('stop'))
@@ -67,7 +55,7 @@ def webhook():
             }
             
             order = bitget.create_order(symbol, 'market', 'buy', amount, params=params)
-            return jsonify({"status": "success", "order_id": order['id']}), 200
+            print(f"Order Executed Successfully: {order['id']}")
 
         elif action == 'close':
             positions = bitget.fetch_positions([symbol])
@@ -75,13 +63,22 @@ def webhook():
                 contracts = float(pos.get('contracts', 0))
                 if contracts > 0 and pos.get('side') == 'long':
                     bitget.create_order(symbol, 'market', 'sell', contracts, params={'reduceOnly': True})
-            return jsonify({"status": "success", "message": "Long Position Closed"}), 200
-
-        return jsonify({"status": "ignored", "message": "Unknown Action"}), 200
+            print("Long Position Closed Successfully")
 
     except Exception as e:
-        print(f"Server Error Details: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"Async Order Execution Error: {str(e)}")
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"status": "error", "message": "No JSON Data"}), 400
+
+    # 백그라운드 쓰레드로 주문 비동기 실행 (트레이딩뷰 타임아웃 완벽 차단)
+    threading.Thread(target=process_order, args=(data,)).start()
+
+    # 트레이딩뷰에는 즉시 성공 200 반환 (0.05초 소요)
+    return jsonify({"status": "received"}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
