@@ -5,7 +5,7 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Render Environment Variables(환경변수)
+# Render Environment Variables (환경변수)
 API_KEY = os.environ.get("BITGET_API_KEY", "")
 SECRET_KEY = os.environ.get("BITGET_SECRET_KEY", "")
 PASSPHRASE = os.environ.get("BITGET_PASSPHRASE", "")
@@ -42,8 +42,8 @@ def webhook():
         data = request.get_json(force=True)
 
         action = str(data.get("action", "")).lower()
-        symbol = data.get("symbol", "SOXLUSDT")
-        contracts = float(data.get("contracts", 1))
+        symbol = data.get("symbol", "BTCUSDT")
+        contracts = float(data.get("contracts", 0.001))
 
         # 심볼 포맷 변환 (BTCUSDT -> BTC/USDT:USDT)
         if "/" not in symbol:
@@ -55,7 +55,7 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 💡 [핵심]: 통합 계정(UTA / Unified Account) 지원 옵션 추가
+        # 통합 계정(UTA / Unified Account) 지원 옵션
         params = {"productType": "USDT-FUTURES"}
 
         # 비트겟 시장가 주문 실행
