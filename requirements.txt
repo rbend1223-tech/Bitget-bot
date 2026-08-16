@@ -1,3 +1,3 @@
 Flask==3.0.2
-ccxt==4.2.55
+ccxt
 gunicorn==21.2.0
