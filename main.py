@@ -51,51 +51,42 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 💡 [단방향 모드 설정] 불필요한 posMode / tradeSide 제거
-        params = {
-            "productType": "USDT-FUTURES"
-        }
-
+        # 💡 비트겟 헷징 모드(Hedge Mode) 필수 파라미터 규격
         if action in ["buy", "long"]:
+            params = {
+                "productType": "USDT-FUTURES",
+                "posMode": "hedge_mode",
+                "tradeSide": "open",
+                "holdSide": "long",
+            }
             order = exchange.create_market_buy_order(
                 symbol_formatted, contracts, params=params
             )
         elif action in ["sell", "short"]:
+            params = {
+                "productType": "USDT-FUTURES",
+                "posMode": "hedge_mode",
+                "tradeSide": "open",
+                "holdSide": "short",
+            }
             order = exchange.create_market_sell_order(
                 symbol_formatted, contracts, params=params
             )
         else:
             return (
                 jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Invalid action: {action}",
-                    }
+                    {"status": "error", "message": f"Invalid action: {action}"}
                 ),
                 400,
             )
 
         print(f"✅ [비트겟 주문 성공] Order ID: {order['id']}")
-        return (
-            jsonify(
-                {
-                    "status": "success",
-                    "order_id": order["id"],
-                    "details": order,
-                }
-            ),
-            200,
-        )
+        return jsonify({"status": "success", "order_id": order["id"]}), 200
 
     except Exception as e:
         print(f"❌ [주문 실패 / 에러 발생]: {str(e)}")
         traceback.print_exc()
-        return (
-            jsonify(
-                {"status": "error", "message": str(e), "raw_payload": raw_text}
-            ),
-            400,
-        )
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 if __name__ == "__main__":
