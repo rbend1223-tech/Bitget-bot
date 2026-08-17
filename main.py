@@ -51,11 +51,9 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 💡 양방향 모드(Hedge Mode) 설정
+        # 💡 [단방향 모드 설정] 불필요한 posMode / tradeSide 제거
         params = {
-            "productType": "USDT-FUTURES",
-            "posMode": "hedge_mode",
-            "tradeSide": "open"  # 매수/매도 신호 발생 시 진입(open) 처리
+            "productType": "USDT-FUTURES"
         }
 
         if action in ["buy", "long"]:
