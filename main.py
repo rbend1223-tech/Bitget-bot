@@ -55,8 +55,11 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 통합 계정(UTA / Unified Account) 지원 옵션
-        params = {"productType": "USDT-FUTURES"}
+        # 💡 [수정]: 통합 계정(UTA) 및 단방향(One-way) 포지션 모드 명시
+        params = {
+            "productType": "USDT-FUTURES",
+            "posMode": "one_way"
+        }
 
         # 비트겟 시장가 주문 실행
         if action in ["buy", "long"]:
