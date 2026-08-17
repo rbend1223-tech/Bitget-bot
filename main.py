@@ -5,31 +5,28 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Render Environment Variables (환경변수)
+# Render Environment Variables
 API_KEY = os.environ.get("BITGET_API_KEY", "")
 SECRET_KEY = os.environ.get("BITGET_SECRET_KEY", "")
 PASSPHRASE = os.environ.get("BITGET_PASSPHRASE", "")
 
-# ccxt 비트겟 객체 생성
 exchange = ccxt.bitget(
     {
         "apiKey": API_KEY,
         "secret": SECRET_KEY,
         "password": PASSPHRASE,
         "options": {
-            "defaultType": "swap",  # 선물 거래(USDT-M) 설정
+            "defaultType": "swap",
         },
     }
 )
 
 
-# 1. UptimeRobot용 Health Check
 @app.route("/", methods=["GET", "HEAD"])
 def health_check():
     return "OK", 200
 
 
-# 2. 트레이딩뷰 웹훅 수신 및 비트겟 주문 실행
 @app.route("/webhook", methods=["POST", "GET", "HEAD"])
 def webhook():
     if request.method in ["GET", "HEAD"]:
@@ -43,9 +40,8 @@ def webhook():
 
         action = str(data.get("action", "")).lower()
         symbol = data.get("symbol", "BTCUSDT")
-        contracts = float(data.get("contracts", 0.001))
+        contracts = float(data.get("contracts", 0.01))
 
-        # 심볼 포맷 변환 (BTCUSDT -> BTC/USDT:USDT)
         if "/" not in symbol:
             symbol_formatted = f"{symbol.replace('USDT', '')}/USDT:USDT"
         else:
@@ -55,13 +51,13 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 💡 [수정]: 통합 계정(UTA) 및 단방향(One-way) 포지션 모드 명시
+        # 💡 양방향 모드(Hedge Mode) 설정
         params = {
             "productType": "USDT-FUTURES",
-            "posMode": "one_way"
+            "posMode": "hedge_mode",
+            "tradeSide": "open"  # 매수/매도 신호 발생 시 진입(open) 처리
         }
 
-        # 비트겟 시장가 주문 실행
         if action in ["buy", "long"]:
             order = exchange.create_market_buy_order(
                 symbol_formatted, contracts, params=params
