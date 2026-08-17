@@ -5,7 +5,6 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Render Environment Variables
 API_KEY = os.environ.get("BITGET_API_KEY", "")
 SECRET_KEY = os.environ.get("BITGET_SECRET_KEY", "")
 PASSPHRASE = os.environ.get("BITGET_PASSPHRASE", "")
@@ -51,24 +50,19 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 💡 비트겟 헷징 모드(Hedge Mode) 필수 파라미터 규격
+        # 비트겟 헷징 모드 정석 파라미터
+        params = {
+            "productType": "USDT-FUTURES",
+            "posMode": "hedge_mode",
+            "tradeSide": "open",
+            "holdSide": "long" if action in ["buy", "long"] else "short",
+        }
+
         if action in ["buy", "long"]:
-            params = {
-                "productType": "USDT-FUTURES",
-                "posMode": "hedge_mode",
-                "tradeSide": "open",
-                "holdSide": "long",
-            }
             order = exchange.create_market_buy_order(
                 symbol_formatted, contracts, params=params
             )
         elif action in ["sell", "short"]:
-            params = {
-                "productType": "USDT-FUTURES",
-                "posMode": "hedge_mode",
-                "tradeSide": "open",
-                "holdSide": "short",
-            }
             order = exchange.create_market_sell_order(
                 symbol_formatted, contracts, params=params
             )
