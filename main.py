@@ -50,29 +50,42 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 비트겟 헷징 모드 정석 파라미터
-        params = {
+        # 1차 시도: 헷징 모드 파라미터
+        hedge_params = {
             "productType": "USDT-FUTURES",
             "posMode": "hedge_mode",
             "tradeSide": "open",
             "holdSide": "long" if action in ["buy", "long"] else "short",
         }
 
-        if action in ["buy", "long"]:
-            order = exchange.create_market_buy_order(
-                symbol_formatted, contracts, params=params
-            )
-        elif action in ["sell", "short"]:
-            order = exchange.create_market_sell_order(
-                symbol_formatted, contracts, params=params
-            )
-        else:
-            return (
-                jsonify(
-                    {"status": "error", "message": f"Invalid action: {action}"}
-                ),
-                400,
-            )
+        # 2차 시도 (fallback): 단방향 모드 파라미터
+        oneway_params = {"productType": "USDT-FUTURES"}
+
+        order = None
+        try:
+            # 우선 헷징 모드로 주문 전송
+            if action in ["buy", "long"]:
+                order = exchange.create_market_buy_order(
+                    symbol_formatted, contracts, params=hedge_params
+                )
+            elif action in ["sell", "short"]:
+                order = exchange.create_market_sell_order(
+                    symbol_formatted, contracts, params=hedge_params
+                )
+        except Exception as err:
+            # 25156 (One-way 모드 요구) 에러 감지 시 즉시 단방향 규격으로 재시도
+            if "25156" in str(err) or "one-way" in str(err).lower():
+                print("⚠️ [API 반응] 단방향 모드 규격으로 자동 전환하여 재시도합니다.")
+                if action in ["buy", "long"]:
+                    order = exchange.create_market_buy_order(
+                        symbol_formatted, contracts, params=oneway_params
+                    )
+                elif action in ["sell", "short"]:
+                    order = exchange.create_market_sell_order(
+                        symbol_formatted, contracts, params=oneway_params
+                    )
+            else:
+                raise err
 
         print(f"✅ [비트겟 주문 성공] Order ID: {order['id']}")
         return jsonify({"status": "success", "order_id": order["id"]}), 200
