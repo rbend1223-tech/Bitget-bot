@@ -50,9 +50,8 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 비트겟 헷징모드 파라미터 분기
+        # 비트겟 헷징모드 파라미터 분기 (진입 vs 청산)
         if action in ["buy", "long"]:
-            # 롱 진입
             params = {
                 "productType": "USDT-FUTURES",
                 "marginCoin": "USDT",
@@ -64,9 +63,7 @@ def webhook():
             )
 
         elif action in ["sell", "short"]:
-            # 숏 진입 또는 롱 청산
-            # 트레이딩뷰 액션에 따라 선택: 기본은 숏 진입(open), 청산 신호면 close 처리
-            is_close = data.get("close", False) # payload에 close: true가 있으면 청산 처리
+            is_close = data.get("close", False)
 
             params = {
                 "productType": "USDT-FUTURES",
