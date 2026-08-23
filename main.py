@@ -50,37 +50,42 @@ def webhook():
             f"🚀 [비트겟 주문 시도] 방향: {action.upper()} | 종목: {symbol_formatted} | 수량: {contracts}"
         )
 
-        # 비트겟 헷징모드 파라미터 분기 (진입 vs 청산)
-        if action in ["buy", "long"]:
-            params = {
-                "productType": "USDT-FUTURES",
-                "marginCoin": "USDT",
-                "holdSide": "long",
-                "tradeSide": "open",
-            }
-            order = exchange.create_market_buy_order(
-                symbol_formatted, contracts, params=params
-            )
+        # 1. 헷징 모드 옵션
+        hedge_params = {
+            "productType": "USDT-FUTURES",
+            "posMode": "hedge_mode",
+            "tradeSide": "open",
+            "holdSide": "long" if action in ["buy", "long"] else "short",
+        }
 
-        elif action in ["sell", "short"]:
-            is_close = data.get("close", False)
+        # 2. 단방향 모드 옵션
+        oneway_params = {"productType": "USDT-FUTURES"}
 
-            params = {
-                "productType": "USDT-FUTURES",
-                "marginCoin": "USDT",
-                "holdSide": "long" if is_close else "short",
-                "tradeSide": "close" if is_close else "open",
-            }
-            order = exchange.create_market_sell_order(
-                symbol_formatted, contracts, params=params
-            )
-        else:
-            return (
-                jsonify(
-                    {"status": "error", "message": f"Invalid action: {action}"}
-                ),
-                400,
-            )
+        order = None
+        try:
+            # 우선 헷징 모드로 시도
+            if action in ["buy", "long"]:
+                order = exchange.create_market_buy_order(
+                    symbol_formatted, contracts, params=hedge_params
+                )
+            elif action in ["sell", "short"]:
+                order = exchange.create_market_sell_order(
+                    symbol_formatted, contracts, params=hedge_params
+                )
+        except Exception as err:
+            # 25156 에러 발생 시 단방향 파라미터로 즉시 재시도
+            if "25156" in str(err) or "one-way" in str(err).lower():
+                print("⚠️ [단방향 규격 요구 감지] 단방향 파라미터로 즉시 재시도합니다.")
+                if action in ["buy", "long"]:
+                    order = exchange.create_market_buy_order(
+                        symbol_formatted, contracts, params=oneway_params
+                    )
+                elif action in ["sell", "short"]:
+                    order = exchange.create_market_sell_order(
+                        symbol_formatted, contracts, params=oneway_params
+                    )
+            else:
+                raise err
 
         print(f"✅ [비트겟 주문 성공] Order ID: {order['id']}")
         return jsonify({"status": "success", "order_id": order["id"]}), 200
